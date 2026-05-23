@@ -122,9 +122,6 @@ flake-utils.lib.eachSystem systems (
               fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n");
             '
 
-            # Keep only extracted asar artifacts for packaging.
-            rm -rf scratch/Codex.app
-
             # npm pack drops directories named node_modules, so rename the nested
             # asar tree in-place to keep it in the package output.
             mv scratch/asar/node_modules scratch/asar/asar_node_modules
