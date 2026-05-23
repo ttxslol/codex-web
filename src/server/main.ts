@@ -112,6 +112,9 @@ type IpcMainBridgeState = {
   handleRendererSend?: (channel: string, args: unknown[]) => void;
 };
 
+const DESKTOP_MESSAGE_CHANNEL = "codex_desktop:message-from-view";
+const DESKTOP_FEATURES_CHANGED = "electron-desktop-features-changed";
+
 function printUsage(): void {
   console.log(
     [
@@ -184,6 +187,37 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function forceHostedChromeFeatureAvailability(args: unknown[]): unknown[] {
+  if (args.length !== 1 || !isRecord(args[0])) {
+    return args;
+  }
+
+  const message = args[0];
+  if (message.type !== DESKTOP_FEATURES_CHANGED) {
+    return args;
+  }
+
+  return [
+    {
+      ...message,
+      externalBrowserUse: true,
+      externalBrowserUseAllowed: true,
+    },
+  ];
+}
+
+function normalizeRendererToMainArgs(channel: string, args: unknown[]): unknown[] {
+  if (channel !== DESKTOP_MESSAGE_CHANNEL) {
+    return args;
+  }
+
+  return forceHostedChromeFeatureAvailability(args);
+}
+
 async function getWorkspaceDirectoryEntries({
   directoryPath,
   directoriesOnly,
@@ -227,6 +261,9 @@ async function getWorkspaceDirectoryEntries({
 }
 
 function ensureElectronLikeProcessContext(): void {
+  process.env.BUILD_FLAVOR ??= "prod";
+  process.env.NODE_ENV ??= "production";
+
   const versions = process.versions as NodeJS.ProcessVersions & {
     electron?: string;
   };
@@ -358,7 +395,10 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
       }
 
       if (message.type === "ipc-renderer-send") {
-        bridgeState.handleRendererSend?.(message.channel, message.args);
+        bridgeState.handleRendererSend?.(
+          message.channel,
+          normalizeRendererToMainArgs(message.channel, message.args),
+        );
         return;
       }
 
@@ -393,7 +433,10 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
       if (message.type === "ipc-renderer-invoke") {
         const { channel, requestId, args } = message;
         Promise.resolve(
-          bridgeState.handleRendererInvoke?.(channel, args) ??
+          bridgeState.handleRendererInvoke?.(
+            channel,
+            normalizeRendererToMainArgs(channel, args),
+          ) ??
             Promise.reject(
               new Error(
                 `[ipc-bridge] no ipcMain.handle for channel ${channel}`,

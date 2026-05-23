@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 type StubFunction = (...args: unknown[]) => unknown;
 type StubListener = (...args: unknown[]) => void;
 type StubWebContents = {
@@ -53,6 +56,26 @@ function getIpcMainBridgeState(): IpcMainBridgeState {
 
 function log(method: string, args: unknown[]): void {
   console.log(`[electron-main-stub] ${method}`, args);
+}
+
+function getBundledAppVersion(): string {
+  const processWithResources = process as NodeJS.Process & {
+    resourcesPath?: string;
+  };
+  const packageJsonPath = path.join(
+    processWithResources.resourcesPath ??
+      path.resolve(__dirname, "../../../scratch/asar"),
+    "package.json",
+  );
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    return typeof packageJson.version === "string"
+      ? packageJson.version
+      : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 function createDeepStub(pathLabel: string): StubFunction {
@@ -259,7 +282,7 @@ const appBase = {
   },
   getVersion(): string {
     log("app.getVersion", []);
-    return "26.409.20454";
+    return getBundledAppVersion();
   },
   getPath(name: string): string {
     log("app.getPath", [name]);

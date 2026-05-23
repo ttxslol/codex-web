@@ -127,6 +127,15 @@ flake-utils.lib.eachSystem systems (
             rm -rf scratch/asar/plugins
             cp -R scratch/Codex.app/Contents/Resources/plugins scratch/asar/plugins
 
+            # The hosted shim enables Chrome explicitly, so install the
+            # production bundled Chrome plugin the first time it appears.
+            for mainBundle in scratch/asar/.vite/build/main-*.js; do
+              substituteInPlace "$mainBundle" \
+                --replace-fail \
+                  '{forceReload:!0,name:dt,isAvailable:({buildFlavor:e,features:t})=>t.externalBrowserUseAllowed&&sr(e)}' \
+                  '{forceReload:!0,installWhenMissing:!0,name:dt,isAvailable:({buildFlavor:e,features:t})=>t.externalBrowserUseAllowed&&sr(e)}'
+            done
+
             # npm pack drops directories named node_modules, so rename the nested
             # asar tree in-place to keep it in the package output.
             mv scratch/asar/node_modules scratch/asar/asar_node_modules
