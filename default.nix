@@ -122,6 +122,11 @@ flake-utils.lib.eachSystem systems (
               fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n");
             '
 
+            # The web shim points process.resourcesPath at scratch/asar, while
+            # bundled plugins are distributed next to app.asar in Codex.app.
+            rm -rf scratch/asar/plugins
+            cp -R scratch/Codex.app/Contents/Resources/plugins scratch/asar/plugins
+
             # npm pack drops directories named node_modules, so rename the nested
             # asar tree in-place to keep it in the package output.
             mv scratch/asar/node_modules scratch/asar/asar_node_modules

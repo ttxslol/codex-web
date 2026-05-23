@@ -4,7 +4,6 @@
   "files": [
     "README.md",
     "scratch/asar/**/*",
-    "scratch/Codex.app/**/*",
     "src/server/**/*.js",
     "src/server/electron/index.js",
     "!**/*.ts"
