@@ -18,64 +18,62 @@ flake-utils.lib.eachSystem systems (
     pkgs = import nixpkgs { inherit system; };
     linuxOpenChromeWindow =
       let
-        linuxUserDataTemplate =
-          let
-            chromeExtensionId = "hehggadaopoacecdllhhajmbjkdcmajg";
-            chromeNativeHostName = "com.openai.codexextension";
-            chromeExtensionUpdateUrl = "https://clients2.google.com/service/update2/crx";
-          in
-          pkgs.linkFarm "codex-brave-user-data-template" [
-            {
-              name = "NativeMessagingHosts/${chromeNativeHostName}.json";
-              path = pkgs.writeText "codex-chrome-native-host-manifest.json" (
-                builtins.toJSON {
-                  name = chromeNativeHostName;
-                  description = "Codex chrome native messaging host";
-                  type = "stdio";
-                  path = "${self.packages.${system}.codex_chrome_extension_host}/bin/codex-chrome-extension-host";
-                  allowed_origins = [ "chrome-extension://${chromeExtensionId}/" ];
-                }
-              );
-            }
-            {
-              name = "External Extensions/${chromeExtensionId}.json";
-              path = pkgs.writeText "codex-chrome-extension.json" (
-                builtins.toJSON {
-                  external_update_url = chromeExtensionUpdateUrl;
-                }
-              );
-            }
-            {
-              name = "policies/managed/codex.json";
-              path = pkgs.writeText "codex-chrome-policy.json" (
-                builtins.toJSON {
-                  ExtensionInstallForcelist = [ "${chromeExtensionId};${chromeExtensionUpdateUrl}" ];
-                  AudioCaptureAllowed = false;
-                  VideoCaptureAllowed = false;
-                  DefaultClipboardSetting = 2;
-                  DefaultWebUsbGuardSetting = 2;
-                  DefaultSerialGuardSetting = 2;
-                }
-              );
-            }
-            {
-              name = "Codex/Preferences";
-              path = pkgs.writeText "codex-chrome-preferences.json" (
-                builtins.toJSON {
-                  profile = {
-                    name = "Codex";
-                  };
-                  extensions = {
-                    settings = {
-                      "${chromeExtensionId}" = {
-                        external_update_url = chromeExtensionUpdateUrl;
-                      };
+        chromeExtensionId = "hehggadaopoacecdllhhajmbjkdcmajg";
+        chromeNativeHostName = "com.openai.codexextension";
+        chromeExtensionUpdateUrl = "https://clients2.google.com/service/update2/crx";
+        chromeNativeHostManifest = pkgs.writeText "codex-chrome-native-host-manifest.json" (
+          builtins.toJSON {
+            name = chromeNativeHostName;
+            description = "Codex chrome native messaging host";
+            type = "stdio";
+            path = "${self.packages.${system}.codex_chrome_extension_host}/bin/codex-chrome-extension-host";
+            allowed_origins = [ "chrome-extension://${chromeExtensionId}/" ];
+          }
+        );
+        linuxProfileRootTemplate = pkgs.linkFarm "codex-brave-profile-root-template" [
+          {
+            name = "xdg-config/BraveSoftware/Brave-Browser/NativeMessagingHosts/${chromeNativeHostName}.json";
+            path = chromeNativeHostManifest;
+          }
+          {
+            name = "user-data/External Extensions/${chromeExtensionId}.json";
+            path = pkgs.writeText "codex-chrome-extension.json" (
+              builtins.toJSON {
+                external_update_url = chromeExtensionUpdateUrl;
+              }
+            );
+          }
+          {
+            name = "user-data/policies/managed/codex.json";
+            path = pkgs.writeText "codex-chrome-policy.json" (
+              builtins.toJSON {
+                ExtensionInstallForcelist = [ "${chromeExtensionId};${chromeExtensionUpdateUrl}" ];
+                AudioCaptureAllowed = false;
+                VideoCaptureAllowed = false;
+                DefaultClipboardSetting = 2;
+                DefaultWebUsbGuardSetting = 2;
+                DefaultSerialGuardSetting = 2;
+              }
+            );
+          }
+          {
+            name = "user-data/Codex/Preferences";
+            path = pkgs.writeText "codex-chrome-preferences.json" (
+              builtins.toJSON {
+                profile = {
+                  name = "Codex";
+                };
+                extensions = {
+                  settings = {
+                    "${chromeExtensionId}" = {
+                      external_update_url = chromeExtensionUpdateUrl;
                     };
                   };
-                }
-              );
-            }
-          ];
+                };
+              }
+            );
+          }
+        ];
       in
       pkgs.writeShellScriptBin "codex-open-chrome-window" ''
         set -euo pipefail
@@ -93,14 +91,15 @@ flake-utils.lib.eachSystem systems (
         user_data_dir="$profile_root/user-data"
         profile_name="Codex"
 
+        cp -RL --no-preserve=mode,ownership,timestamps ${linuxProfileRootTemplate}/. "$profile_root"
+
         mkdir -p \
           "$home_dir" \
-          "$xdg_config_home" \
           "$xdg_cache_home" \
+          "$xdg_config_home" \
           "$user_data_dir"
 
-        cp -RL --no-preserve=mode,ownership,timestamps ${linuxUserDataTemplate}/. "$user_data_dir"
-        chmod -R u+w "$user_data_dir"
+        chmod -R u+w "$profile_root"
 
         log_file="$profile_root/brave.log"
         HOME="$home_dir" XDG_CONFIG_HOME="$xdg_config_home" XDG_CACHE_HOME="$xdg_cache_home" \
