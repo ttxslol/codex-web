@@ -24,7 +24,9 @@
     inputs@{ flake-utils, ... }:
     flake-utils.lib.meld inputs [
       ./nix/codex
+      ./nix/codex-zip
       ./nix/codex-primary-runtime
+      ./nix/codex-web-resources
       ./src/chrome-extension-host
       ./default.nix
       ./nix/fmt.nix
