@@ -110,6 +110,10 @@ flake-utils.lib.eachSystem systems (
           --no-first-run \
           --no-default-browser-check \
           --disable-dev-shm-usage \
+          --force-device-scale-factor=1 \
+          --start-maximized \
+          --window-position=0,0 \
+          --window-size=1920,1080 \
           --new-window about:blank
       '';
   in
