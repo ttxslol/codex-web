@@ -153,8 +153,9 @@ flake-utils.lib.eachSystem systems (
       + pkgs.lib.optionalString (system == "x86_64-linux") ''
         chromePluginRoot="$out/plugins/openai-bundled/plugins/chrome"
         patch --batch --forward --strip 1 --directory "$chromePluginRoot" < ${./patches/chrome-linux-brave-skill.patch}
+        substituteInPlace "$chromePluginRoot/skills/chrome/SKILL.md" \
+          --replace-fail '@openChromeWindow@' '${linuxOpenChromeWindow}/bin/codex-open-chrome-window'
         rm "$chromePluginRoot/scripts/open-chrome-window.js"
-        ln -s ${linuxOpenChromeWindow}/bin/codex-open-chrome-window "$chromePluginRoot/scripts/open-chrome-window"
       ''
       + pkgs.lib.optionalString (system == "aarch64-darwin") ''
         install -m755 Codex.app/Contents/Resources/node "$out/node"

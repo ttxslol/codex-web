@@ -24,7 +24,7 @@
 -scripts/installed-browsers.js --check
 -scripts/check-extension-installed.js --json
 -scripts/check-native-host-manifest.js --json
-+scripts/open-chrome-window
++@openChromeWindow@
  ```
  
 -Depending on the outcome follow the following checks. Be sure to ask the user permission when required, if it is stated in the check.
