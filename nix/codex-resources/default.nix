@@ -16,6 +16,107 @@ flake-utils.lib.eachSystem systems (
   system:
   let
     pkgs = import nixpkgs { inherit system; };
+    linuxOpenChromeWindow =
+      let
+        linuxUserDataTemplate =
+          let
+            chromeExtensionId = "hehggadaopoacecdllhhajmbjkdcmajg";
+            chromeNativeHostName = "com.openai.codexextension";
+            chromeExtensionUpdateUrl = "https://clients2.google.com/service/update2/crx";
+          in
+          pkgs.linkFarm "codex-brave-user-data-template" [
+            {
+              name = "NativeMessagingHosts/${chromeNativeHostName}.json";
+              path = pkgs.writeText "codex-chrome-native-host-manifest.json" (
+                builtins.toJSON {
+                  name = chromeNativeHostName;
+                  description = "Codex chrome native messaging host";
+                  type = "stdio";
+                  path = "${self.packages.${system}.codex_chrome_extension_host}/bin/codex-chrome-extension-host";
+                  allowed_origins = [ "chrome-extension://${chromeExtensionId}/" ];
+                }
+              );
+            }
+            {
+              name = "External Extensions/${chromeExtensionId}.json";
+              path = pkgs.writeText "codex-chrome-extension.json" (
+                builtins.toJSON {
+                  external_update_url = chromeExtensionUpdateUrl;
+                }
+              );
+            }
+            {
+              name = "policies/managed/codex.json";
+              path = pkgs.writeText "codex-chrome-policy.json" (
+                builtins.toJSON {
+                  ExtensionInstallForcelist = [ "${chromeExtensionId};${chromeExtensionUpdateUrl}" ];
+                  AudioCaptureAllowed = false;
+                  VideoCaptureAllowed = false;
+                  DefaultClipboardSetting = 2;
+                  DefaultWebUsbGuardSetting = 2;
+                  DefaultSerialGuardSetting = 2;
+                }
+              );
+            }
+            {
+              name = "Codex/Preferences";
+              path = pkgs.writeText "codex-chrome-preferences.json" (
+                builtins.toJSON {
+                  profile = {
+                    name = "Codex";
+                  };
+                  extensions = {
+                    settings = {
+                      "${chromeExtensionId}" = {
+                        external_update_url = chromeExtensionUpdateUrl;
+                      };
+                    };
+                  };
+                }
+              );
+            }
+          ];
+      in
+      pkgs.writeShellScriptBin "codex-open-chrome-window" ''
+        set -euo pipefail
+
+        if [[ "$#" -gt 0 ]]; then
+          echo "Usage: scripts/open-chrome-window.js" >&2
+          exit 2
+        fi
+
+        profile_root="$(mktemp -d -t codex-brave-profile.XXXXXX)"
+
+        home_dir="$profile_root/home"
+        xdg_config_home="$profile_root/xdg-config"
+        xdg_cache_home="$profile_root/xdg-cache"
+        user_data_dir="$profile_root/user-data"
+        profile_name="Codex"
+
+        mkdir -p \
+          "$home_dir" \
+          "$xdg_config_home" \
+          "$xdg_cache_home" \
+          "$user_data_dir"
+
+        cp -RL --no-preserve=mode,ownership,timestamps ${linuxUserDataTemplate}/. "$user_data_dir"
+        chmod -R u+w "$user_data_dir"
+
+        log_file="$profile_root/brave.log"
+        HOME="$home_dir" XDG_CONFIG_HOME="$xdg_config_home" XDG_CACHE_HOME="$xdg_cache_home" \
+          ${pkgs.xvfb-run}/bin/xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+          ${pkgs.brave}/bin/brave \
+          --user-data-dir="$user_data_dir" \
+          --profile-directory="$profile_name" \
+          --no-first-run \
+          --no-default-browser-check \
+          --disable-dev-shm-usage \
+          --new-window about:blank \
+          > "$log_file" 2>&1 &
+
+        echo "$!" > "$profile_root/xvfb-run.pid"
+        echo "Started Brave with profile root: $profile_root"
+      '';
   in
   {
     packages.codex_resources = pkgs.stdenvNoCC.mkDerivation {
@@ -24,7 +125,10 @@ flake-utils.lib.eachSystem systems (
 
       src = self.packages.${system}.codexZip;
 
-      nativeBuildInputs = [ pkgs.unzip ];
+      nativeBuildInputs = [
+        pkgs.patch
+        pkgs.unzip
+      ];
 
       dontConfigure = true;
       dontBuild = true;
@@ -50,6 +154,12 @@ flake-utils.lib.eachSystem systems (
         substituteInPlace "$chromeManifestScript" \
           --replace-fail 'let t=a(o);' "let t=\"$chromeExtensionHost\";" \
           --replace-fail 'path:a(o)' "path:\"$chromeExtensionHost\""
+      ''
+      + pkgs.lib.optionalString (system == "x86_64-linux") ''
+        chromePluginRoot="$out/plugins/openai-bundled/plugins/chrome"
+        patch --batch --forward --strip 1 --directory "$chromePluginRoot" < ${./patches/chrome-linux-brave-skill.patch}
+        rm "$chromePluginRoot/scripts/open-chrome-window.js"
+        ln -s ${linuxOpenChromeWindow}/bin/codex-open-chrome-window "$chromePluginRoot/scripts/open-chrome-window.js"
       ''
       + pkgs.lib.optionalString (system == "aarch64-darwin") ''
         install -m755 Codex.app/Contents/Resources/node "$out/node"

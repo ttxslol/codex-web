@@ -1,0 +1,38 @@
+--- a/skills/chrome/SKILL.md
++++ b/skills/chrome/SKILL.md
+@@ -46,6 +46,14 @@
+ Keep the first response short and non-technical unless the user asks for more information.
+ 
+ If Chrome is not running then ALWAYS ask the User if they would like to launch Chrome. ALWAYS wait for a user response before taking action.
++
++If the User agrees, run:
++
++```
++scripts/open-chrome-window.js
++```
++
++Then wait 2 seconds and retry the browser-client setup once.
+ 
+ 
+ ### 3. The native host manifest is not installed, or is invalid
+@@ -141,19 +149,13 @@
+ 
+ ### open-chrome-window.js
+ 
+-This script opens `about:blank` in a Google Chrome window for the same selected Chrome profile used by `check-extension-installed.js`. Use it only after the User gives permission.
++This script opens a browser window for the selected Chrome automation profile. On Linux, the packaged script starts Brave from Nix under Xvfb with a fresh temporary profile configured for the Codex Chrome Extension and native host bridge. Use it only after the User gives permission.
+ 
+ From the plugin root, use `node_repl` to run:
+ 
+ ```
+ scripts/open-chrome-window.js
+-```
+-
+-Use dry-run JSON output when another tool or script needs to verify the selected launch command without opening Chrome:
+-
+ ```
+-scripts/open-chrome-window.js --dry-run --json
+-```
+ 
+ ### check-extension-installed.js
+ 
