@@ -103,7 +103,6 @@ flake-utils.lib.eachSystem systems (
 
         log_file="$profile_root/brave.log"
         HOME="$home_dir" XDG_CONFIG_HOME="$xdg_config_home" XDG_CACHE_HOME="$xdg_cache_home" \
-          ${pkgs.util-linux}/bin/setsid \
           ${pkgs.xvfb-run}/bin/xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
           ${pkgs.brave}/bin/brave \
           --user-data-dir="$user_data_dir" \
