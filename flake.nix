@@ -26,7 +26,7 @@
       ./nix/codex
       ./nix/codex-zip
       ./nix/codex-primary-runtime
-      ./nix/codex-web-resources
+      ./nix/codex-resources
       ./src/chrome-extension-host
       ./default.nix
       ./nix/fmt.nix

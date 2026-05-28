@@ -107,7 +107,7 @@ flake-utils.lib.eachSystem systems (
 
           postBuild = ''
             substituteInPlace src/server/main.js \
-              --replace-fail '@resourcesPath@' '${self.packages.${system}.codexWebResources}'
+              --replace-fail '@resourcesPath@' '${self.packages.${system}.codex_resources}'
           '';
 
           preInstall = ''

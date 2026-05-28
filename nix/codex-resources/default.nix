@@ -18,8 +18,8 @@ flake-utils.lib.eachSystem systems (
     pkgs = import nixpkgs { inherit system; };
   in
   {
-    packages.codexWebResources = pkgs.stdenvNoCC.mkDerivation {
-      pname = "codex-web-resources";
+    packages.codex_resources = pkgs.stdenvNoCC.mkDerivation {
+      pname = "codex-resources";
       version = self.packages.${system}.codexZip.version;
 
       src = self.packages.${system}.codexZip;
@@ -62,7 +62,7 @@ flake-utils.lib.eachSystem systems (
         }/dependencies/bin/node_repl "$out/node_repl"
       ''
       + pkgs.lib.optionalString (system != "aarch64-darwin" && system != "x86_64-linux") ''
-        echo "codex-web resources are only packaged for aarch64-darwin and x86_64-linux" >&2
+        echo "codex resources are only packaged for aarch64-darwin and x86_64-linux" >&2
         exit 1
       ''
       + ''
