@@ -110,11 +110,7 @@ flake-utils.lib.eachSystem systems (
           --no-first-run \
           --no-default-browser-check \
           --disable-dev-shm-usage \
-          --new-window about:blank \
-          > "$log_file" 2>&1 &
-
-        echo "$!" > "$profile_root/xvfb-run.pid"
-        echo "Started Brave with profile root: $profile_root"
+          --new-window about:blank
       '';
   in
   {
