@@ -1,0 +1,13 @@
+diff --git a/webview/assets/model-queries-oiSwjcwe.js b/webview/assets/model-queries-oiSwjcwe.js
+index c88fbfd..6d794f7 100644
+--- a/webview/assets/model-queries-oiSwjcwe.js
++++ b/webview/assets/model-queries-oiSwjcwe.js
+@@ -63,7 +63,7 @@ var S = c(
+           o = null;
+         return (
+           r.forEach((e) => {
+-            if (d ? a.has(e.model) : !e.hidden) {
++            if (!e.hidden) {
+               let n =
+                 t === `copilot`
+                   ? [

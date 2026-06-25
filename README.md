@@ -138,3 +138,35 @@ talk.
   today. i can't wait for the mobile app but judging by the other openai mobile
   apps, i'm a little bit skeptical about the quality of the mobile experience.
   time will tell.
+
+## local fork maintenance
+
+This deployment is maintained as a local fork for a self-hosted Codex setup.
+The deployed `main` branch is kept stable, while changes are developed and
+verified on feature branches before being merged.
+
+Repository roles:
+
+- `origin` points to the private/local fork when one is configured.
+- `upstream` points to `https://github.com/0xcaff/codex-web`.
+- `main` is the version deployed to the server.
+- feature branches contain local adaptations and are merged only after build
+  and browser regression testing.
+
+Local changes should be implemented as reproducible files in `patches/` or as
+source changes in `src/`. Generated files under `scratch/` are build artifacts
+and must not be treated as the source of truth.
+
+The model selector follows Codex rather than maintaining a separate frontend
+catalog:
+
+- models come from the Codex app-server `model/list` response;
+- provider selection comes from Codex configuration and thread settings;
+- reasoning levels come from each model's `supportedReasoningEfforts` and
+  `defaultReasoningEffort`;
+- the frontend must not hard-code Sub2API or Qianfan model names.
+
+Upstream updates are reviewed on a temporary integration branch. Rebuild the
+downloaded Codex Desktop frontend, reapply local patches, and run browser tests
+covering model selection, thread creation, message sending, approvals, skills,
+and automations before merging into `main`.
