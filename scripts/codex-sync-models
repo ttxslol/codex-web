@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export PATH="${HOME}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+catalog="${HOME}/.codex/models.json"
+credential="${HOME}/.config/codex/credentials/sub2api"
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+codex debug models --bundled > "$tmp_dir/bundled.json"
+
+if [[ ! -r "$credential" ]]; then
+  echo "Sub2API credential is unavailable: $credential" >&2
+  exit 1
+fi
+
+token="$(tr -d '\r\n' < "$credential")"
+curl -fsS --max-time 20 \
+  -H "Authorization: Bearer ${token}" \
+  http://127.0.0.1:8080/v1/models > "$tmp_dir/sub2api.json"
+unset token
+
+docker exec sub2api-postgres sh -lc \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "
+    select distinct key
+    from accounts,
+         lateral jsonb_object_keys(coalesce(credentials->'\''model_mapping'\'', '\''{}'\''::jsonb)) as key
+    where deleted_at is null
+      and status = '\''active'\''
+      and schedulable = true
+      and name ilike '\''%qianfan%'\''
+  "' > "$tmp_dir/qianfan-models.txt"
+
+jq -n \
+  --slurpfile bundled "$tmp_dir/bundled.json" \
+  --slurpfile upstream "$tmp_dir/sub2api.json" \
+  --rawfile qianfan "$tmp_dir/qianfan-models.txt" '
+  ($upstream[0].data // [] | map(.id) | unique) as $upstream_ids
+  | ($qianfan | split("\n") | map(select(length > 0)) | unique) as $qianfan_ids
+  | ($bundled[0].models // []) as $builtin
+  | ($builtin | map(.slug)) as $builtin_ids
+  | ($builtin[0]) as $template
+  | {
+      models:
+        (((
+          $builtin
+          | map(
+              .slug as $slug
+              | .display_name =
+                (if $upstream_ids | index($slug)
+                 then "[Codex 内置 · Sub2API 可用] " + .display_name
+                 else "[Codex 内置] " + .display_name
+                 end)
+              | .description =
+                ((if $upstream_ids | index($slug)
+                  then "Codex 内置模型；当前也由 Sub2API 发布。"
+                  else "Codex 当前版本内置的模型元数据；不代表 Sub2API 当前可调度。"
+                  end) + " " + (.description // ""))
+            )
+        ))
+        +
+        (
+          $upstream_ids
+          | map(. as $slug | select(($builtin_ids | index($slug)) | not))
+          | to_entries
+          | map(
+              .key as $index
+              | .value as $slug
+              | $template
+              | .slug = $slug
+              | .display_name =
+                  (if $qianfan_ids | index($slug)
+                   then "[千帆 via Sub2API] " + $slug
+                   else "[Sub2API] " + $slug
+                   end)
+              | .description =
+                  (if $qianfan_ids | index($slug)
+                   then "由 Sub2API 发布并转发到百度千帆 Coding Plan。"
+                   else "由 Sub2API 动态模型列表发布。"
+                   end)
+              | .priority = (100 + $index)
+              | .additional_speed_tiers = []
+              | .service_tiers = []
+              | .availability_nux = null
+              | .upgrade = null
+              | if ($slug == "deepseek-v4-pro" or $slug == "deepseek-v4-flash")
+                then
+                  .default_reasoning_level = "high"
+                  | .supported_reasoning_levels = [
+                      {
+                        "effort": "high",
+                        "description": "千帆标准推理强度"
+                      },
+                      {
+                        "effort": "xhigh",
+                        "description": "映射为千帆最大推理强度 max"
+                      }
+                    ]
+                  | .supports_reasoning_summaries = true
+                else
+                  .default_reasoning_level = null
+                  | .supported_reasoning_levels = []
+                  | .supports_reasoning_summaries = false
+                end
+            )
+        ))
+    }
+' > "$tmp_dir/models.json"
+
+jq -e '.models | type == "array" and length > 0' "$tmp_dir/models.json" >/dev/null
+install -m 600 "$tmp_dir/models.json" "$catalog"
+
+printf 'Updated %s\n' "$catalog"
+jq -r '.models[] | select(.visibility == "list") | "\(.slug)\t\(.display_name)"' "$catalog"

@@ -161,10 +161,17 @@ The model selector follows Codex rather than maintaining a separate frontend
 catalog:
 
 - models come from the Codex app-server `model/list` response;
+- `scripts/codex-sync-models` merges Codex's bundled catalog with the current
+  Sub2API `/v1/models` response before the app-server starts;
 - provider selection comes from Codex configuration and thread settings;
 - reasoning levels come from each model's `supportedReasoningEfforts` and
   `defaultReasoningEffort`;
 - the frontend must not hard-code Sub2API or Qianfan model names.
+
+For a running self-hosted instance, enter `/refresh-models` in the composer.
+The command regenerates `~/.codex/models.json`, schedules a controlled
+`codex-web.service` restart, and reloads the page so the new app-server instance
+returns the updated `model/list`.
 
 Upstream updates are reviewed on a temporary integration branch. Rebuild the
 downloaded Codex Desktop frontend, reapply local patches, and run browser tests

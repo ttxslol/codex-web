@@ -1,0 +1,16 @@
+[Unit]
+Description=Codex Web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/workspace/codex-web
+Environment=CODEX_CLI_PATH=/usr/local/bin/codex
+ExecStartPre=/home/ubuntu/workspace/codex-web/scripts/codex-sync-models
+ExecStart=/usr/bin/node /home/ubuntu/workspace/codex-web/src/server/main.js --host 127.0.0.1 --port 18214
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

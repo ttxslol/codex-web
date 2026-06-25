@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { parseArgs as parseCliArgs } from "node:util";
+import { parseArgs as parseCliArgs, promisify } from "node:util";
 import { WebSocket, WebSocketServer } from "ws";
 import Fastify from "fastify";
 import fastifyMultipart from "@fastify/multipart";
@@ -16,6 +17,8 @@ type ServerOptions = {
   host: string;
   port: number;
 };
+
+const execFileAsync = promisify(execFile);
 
 type RendererToMainMessage =
   | {
@@ -290,6 +293,57 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
     );
 
     return reply.send({ files });
+  });
+
+  app.post("/__backend/models/refresh", async (request, reply) => {
+    if (request.headers["x-codex-model-refresh"] !== "1") {
+      return reply.code(403).send({ error: "model refresh header required" });
+    }
+
+    const origin = request.headers.origin;
+    const host = request.headers.host;
+    if (origin && host && new URL(origin).host !== host) {
+      return reply.code(403).send({ error: "cross-origin refresh denied" });
+    }
+
+    const syncScript =
+      process.env.CODEX_MODEL_SYNC_SCRIPT ??
+      path.resolve(__dirname, "../../scripts/codex-sync-models");
+    const { stdout } = await execFileAsync(syncScript, [], {
+      encoding: "utf8",
+      timeout: 30_000,
+      maxBuffer: 1024 * 1024,
+    });
+
+    const unitName = `codex-web-model-refresh-${Date.now()}`;
+    await execFileAsync(
+      "systemd-run",
+      [
+        "--user",
+        `--unit=${unitName}`,
+        "--on-active=2s",
+        "/usr/bin/systemctl",
+        "--user",
+        "restart",
+        "codex-web.service",
+      ],
+      {
+        timeout: 10_000,
+        maxBuffer: 64 * 1024,
+      },
+    );
+
+    const models = stdout
+      .split("\n")
+      .slice(1)
+      .map((line) => line.split("\t", 1)[0]?.trim())
+      .filter((model): model is string => Boolean(model));
+
+    return reply.send({
+      ok: true,
+      models,
+      restartScheduled: true,
+    });
   });
 
   await app.register(fastifyStatic, {

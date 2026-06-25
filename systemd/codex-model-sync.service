@@ -1,0 +1,8 @@
+[Unit]
+Description=Synchronize Codex model catalog with Sub2API
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/workspace/codex-web
+ExecStart=/home/ubuntu/workspace/codex-web/scripts/codex-sync-models
