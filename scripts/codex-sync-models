@@ -36,54 +36,52 @@ jq -n \
   --slurpfile bundled "$tmp_dir/bundled.json" \
   --slurpfile upstream "$tmp_dir/sub2api.json" \
   --rawfile qianfan "$tmp_dir/qianfan-models.txt" '
+  def mobile_display_name:
+    if . == "ernie-4.5-turbo-20260402" then "ernie-4.5-turbo"
+    elif . == "qianfan-code-latest" then "qianfan-code"
+    else .
+    end;
+  def provider_display_name($is_qianfan):
+    (if $is_qianfan then "千帆 · " else "S2A · " end) + mobile_display_name;
+
   ($upstream[0].data // [] | map(.id) | unique) as $upstream_ids
   | ($qianfan | split("\n") | map(select(length > 0)) | unique) as $qianfan_ids
   | ($bundled[0].models // []) as $builtin
-  | ($builtin | map(.slug)) as $builtin_ids
-  | ($builtin[0]) as $template
+  | ($builtin | map({key: .slug, value: .}) | from_entries) as $builtin_by_slug
+  | (($builtin_by_slug["gpt-5.5"] // $builtin[0])) as $template
+  | {
+      "deepseek-v3.2": 96000,
+      "deepseek-v4-flash": 1000000,
+      "deepseek-v4-pro": 1000000,
+      "ernie-4.5-turbo-20260402": 124000,
+      "glm-5": 200000,
+      "glm-5.1": 200000,
+      "kimi-k2.5": 228000,
+      "qianfan-code-latest": 228000
+    } as $context_windows
   | {
       models:
-        (((
-          $builtin
-          | map(
-              .slug as $slug
-              | .display_name =
-                (if $upstream_ids | index($slug)
-                 then "[Codex 内置 · Sub2API 可用] " + .display_name
-                 else "[Codex 内置] " + .display_name
-                 end)
-              | .description =
-                ((if $upstream_ids | index($slug)
-                  then "Codex 内置模型；当前也由 Sub2API 发布。"
-                  else "Codex 当前版本内置的模型元数据；不代表 Sub2API 当前可调度。"
-                  end) + " " + (.description // ""))
-            )
-        ))
-        +
         (
           $upstream_ids
-          | map(. as $slug | select(($builtin_ids | index($slug)) | not))
           | to_entries
           | map(
               .key as $index
               | .value as $slug
-              | $template
-              | .slug = $slug
-              | .display_name =
-                  (if $qianfan_ids | index($slug)
-                   then "[千帆 via Sub2API] " + $slug
-                   else "[Sub2API] " + $slug
-                   end)
-              | .description =
-                  (if $qianfan_ids | index($slug)
-                   then "由 Sub2API 发布并转发到百度千帆 Coding Plan。"
-                   else "由 Sub2API 动态模型列表发布。"
-                   end)
-              | .priority = (100 + $index)
-              | .additional_speed_tiers = []
-              | .service_tiers = []
-              | .availability_nux = null
-              | .upgrade = null
+              | (($builtin_by_slug[$slug] // $template) + {
+                  slug: $slug,
+                  display_name: ($slug | provider_display_name($qianfan_ids | index($slug))),
+                  description:
+                    (if $qianfan_ids | index($slug)
+                     then "Sub2API -> 百度千帆 Coding Plan。"
+                     else "Sub2API 动态模型。"
+                     end),
+                  visibility: "list",
+                  priority: (100 + $index),
+                  additional_speed_tiers: [],
+                  service_tiers: [],
+                  availability_nux: null,
+                  upgrade: null
+                })
               | if ($slug == "deepseek-v4-pro" or $slug == "deepseek-v4-flash")
                 then
                   .default_reasoning_level = "high"
@@ -98,13 +96,17 @@ jq -n \
                       }
                     ]
                   | .supports_reasoning_summaries = true
-                else
+                elif ($builtin_by_slug[$slug] | not)
+                then
                   .default_reasoning_level = null
                   | .supported_reasoning_levels = []
                   | .supports_reasoning_summaries = false
+                else .
                 end
+              | .context_window = ($context_windows[$slug] // .context_window)
+              | .max_context_window = ($context_windows[$slug] // .max_context_window)
             )
-        ))
+        )
     }
 ' > "$tmp_dir/models.json"
 
